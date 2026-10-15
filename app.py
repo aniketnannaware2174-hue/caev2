@@ -664,94 +664,119 @@ race_telemetry.update_xaxes(title_text="Simulation time (s)", row=4, col=1)
 race_telemetry.update_layout(template="plotly_dark", height=700, margin={"l": 8, "r": 8, "t": 60, "b": 8}, hovermode="x unified", showlegend=False)
 race_columns[1].plotly_chart(race_telemetry, use_container_width=True)
 
-st.markdown("#### Race telemetry & sector analysis")
+st.markdown("#### Live race telemetry")
 st.caption(
-    "Analysis layout follows public motorsport telemetry conventions (distance-aligned channels, driver inputs, speed and sector timing). "
-    "All channels here are synthetic; gear and RPM are illustrative proxies, not physical Formula car telemetry."
+    f"Timeline cursor: {race_row['time_s']:.1f} s · {race_row['distance_m']:.0f} m · "
+    f"{race_row['speed_kmh']:.1f} km/h. Move the Battery timeline slider or start playback to update the cursor. "
+    "All channels are simulated; virtual RPM and gear are illustrative proxies."
 )
-telemetry_figure = make_subplots(
-    rows=5,
-    cols=1,
-    shared_xaxes=True,
-    vertical_spacing=0.055,
-    specs=[[{}], [{}], [{"secondary_y": True}], [{}], [{}]],
-    subplot_titles=(
-        "Speed trace · target vs simulated",
-        "Driver inputs · throttle and brake",
-        "Virtual powertrain · RPM proxy and gear estimate",
-        "Energy deployment · draw and recovered regen",
-        "Powertrain thermal channels",
-    ),
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["speed_kmh"], name="Speed", line={"color": "#41d3bd", "width": 2}), row=1, col=1
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["target_speed_kmh"], name="Target speed", line={"color": "#94a3b8", "dash": "dot"}), row=1, col=1
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["throttle_pct"], name="Throttle demand", line={"color": "#41d3bd"}, fill="tozeroy"), row=2, col=1
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["brake_pct"], name="Brake demand", line={"color": "#ff4d6d"}, fill="tozeroy"), row=2, col=1
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["virtual_rpm"], name="RPM proxy", line={"color": "#b69cff"}), row=3, col=1, secondary_y=False
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["virtual_gear"], name="Virtual gear", mode="lines", line={"color": "#ffc857", "shape": "hv"}), row=3, col=1, secondary_y=True
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["battery_power_kw"], name="Battery power", line={"color": "#ff9f43"}), row=4, col=1
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["regen_power_kw"], name="Regen recovered", line={"color": "#41d3bd", "dash": "dash"}), row=4, col=1
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["battery_temp_c"], name="Battery °C", line={"color": "#41d3bd"}), row=5, col=1
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["motor_temp_c"], name="Motor °C", line={"color": "#ff9f43"}), row=5, col=1
-)
-telemetry_figure.add_trace(
-    go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["inverter_temp_c"], name="Inverter °C", line={"color": "#ff4d6d"}), row=5, col=1
-)
-telemetry_figure.add_vline(x=float(race_row["distance_m"]), line_dash="dash", line_color="#f8fafc", row="all", col=1)
-telemetry_figure.update_yaxes(title_text="km/h", row=1, col=1)
-telemetry_figure.update_yaxes(title_text="%", range=[0, 100], row=2, col=1)
-telemetry_figure.update_yaxes(title_text="RPM proxy", row=3, col=1, secondary_y=False)
-telemetry_figure.update_yaxes(title_text="Gear", range=[0.5, 7.5], dtick=1, row=3, col=1, secondary_y=True)
-telemetry_figure.update_yaxes(title_text="kW", row=4, col=1, zeroline=True, zerolinecolor="#94a3b8")
-telemetry_figure.update_yaxes(title_text="°C", row=5, col=1)
-telemetry_figure.update_xaxes(title_text="Distance from start (m)", row=5, col=1)
-telemetry_figure.update_layout(template="plotly_dark", height=1050, margin={"l": 8, "r": 8, "t": 70, "b": 8}, hovermode="x unified", showlegend=True, legend={"orientation": "h", "y": 1.02})
+telemetry_tabs = st.tabs(["Speed & inputs", "Energy & SoC", "Powertrain temperatures"])
 
-telemetry_columns = st.columns([1.5, 1.0])
-telemetry_columns[0].plotly_chart(telemetry_figure, use_container_width=True)
+with telemetry_tabs[0]:
+    driving_figure = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.16,
+        subplot_titles=("Speed trace", "Driver input demand"),
+    )
+    driving_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["speed_kmh"], name="Simulated speed", line={"color": "#36d7c2", "width": 2.5}), row=1, col=1
+    )
+    driving_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["target_speed_kmh"], name="Track speed target", line={"color": "#9aaabd", "dash": "dot", "width": 2}), row=1, col=1
+    )
+    driving_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["throttle_pct"], name="Throttle", line={"color": "#36d7c2", "width": 2}, fill="tozeroy"), row=2, col=1
+    )
+    driving_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["brake_pct"], name="Brake", line={"color": "#ff5876", "width": 2}, fill="tozeroy"), row=2, col=1
+    )
+    driving_figure.add_vline(x=float(race_row["distance_m"]), line_dash="dash", line_color="#ffffff", row="all", col=1)
+    driving_figure.update_yaxes(title_text="Speed (km/h)", rangemode="tozero", row=1, col=1)
+    driving_figure.update_yaxes(title_text="Input (%)", range=[0, 100], row=2, col=1)
+    driving_figure.update_xaxes(title_text="Distance from start (m)", row=2, col=1)
+    driving_figure.update_layout(
+        template="plotly_dark", height=610, hovermode="x unified",
+        margin={"l": 70, "r": 30, "t": 85, "b": 90},
+        legend={"orientation": "h", "x": 0, "y": -0.2},
+    )
+    st.plotly_chart(driving_figure, use_container_width=True)
+
+with telemetry_tabs[1]:
+    energy_figure = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.13,
+        subplot_titles=("Battery power", "Regenerative power returned", "Vehicle battery SoC"),
+    )
+    energy_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["battery_power_kw"], name="Battery power", line={"color": "#ffad4d", "width": 2.5}, fill="tozeroy"), row=1, col=1
+    )
+    energy_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["regen_power_kw"], name="Regen returned", line={"color": "#36d7c2", "width": 2.5}, fill="tozeroy"), row=2, col=1
+    )
+    energy_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["soc_percent"], name="SoC", line={"color": "#aa91ff", "width": 2.5}), row=3, col=1
+    )
+    energy_figure.add_vline(x=float(race_row["distance_m"]), line_dash="dash", line_color="#ffffff", row="all", col=1)
+    energy_figure.update_yaxes(title_text="Power (kW)", zeroline=True, zerolinecolor="#82909f", row=1, col=1)
+    energy_figure.update_yaxes(title_text="Power (kW)", rangemode="tozero", row=2, col=1)
+    energy_figure.update_yaxes(title_text="SoC (%)", range=[0, 100], row=3, col=1)
+    energy_figure.update_xaxes(title_text="Distance from start (m)", row=3, col=1)
+    energy_figure.update_layout(
+        template="plotly_dark", height=700, hovermode="x unified",
+        margin={"l": 70, "r": 30, "t": 85, "b": 90},
+        legend={"orientation": "h", "x": 0, "y": -0.16},
+    )
+    st.plotly_chart(energy_figure, use_container_width=True)
+
+with telemetry_tabs[2]:
+    thermal_figure = go.Figure()
+    thermal_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["battery_temp_c"], name="Battery", line={"color": "#36d7c2", "width": 2.5})
+    )
+    thermal_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["motor_temp_c"], name="Motor", line={"color": "#ffad4d", "width": 2.5})
+    )
+    thermal_figure.add_trace(
+        go.Scatter(x=race_vehicle["distance_m"], y=race_vehicle["inverter_temp_c"], name="Inverter", line={"color": "#ff5876", "width": 2.5})
+    )
+    thermal_figure.add_vline(x=float(race_row["distance_m"]), line_dash="dash", line_color="#ffffff")
+    thermal_figure.update_layout(
+        template="plotly_dark", height=460, hovermode="x unified",
+        title="Powertrain temperatures across the run",
+        xaxis_title="Distance from start (m)", yaxis_title="Temperature (°C)",
+        margin={"l": 70, "r": 30, "t": 80, "b": 80},
+        legend={"orientation": "h", "x": 0, "y": -0.2},
+    )
+    st.plotly_chart(thermal_figure, use_container_width=True)
+
+st.markdown("#### Simulated-run sector timing")
 sector_progress = analyze_sector_times(
     race_vehicle,
     track_length_m=float(race_track_length_m),
 )
-with telemetry_columns[1]:
-    st.markdown("**Simulated-run sector timing**")
-    if sector_progress.empty:
-        st.info("The simulated duration did not complete a full sector.")
-    else:
-        sector_best = sector_progress.groupby("Sector")["Sector time (s)"].min().rename("Best sector (s)")
-        latest_completed_lap = int(sector_progress["Lap"].max())
-        latest_sectors = sector_progress.loc[sector_progress["Lap"] == latest_completed_lap].copy()
-        latest_sectors = latest_sectors.join(sector_best, on="Sector")
-        latest_sectors["Delta to best (s)"] = latest_sectors["Sector time (s)"] - latest_sectors["Best sector (s)"]
-        latest_sectors["Sector time (s)"] = latest_sectors["Sector time (s)"].map(lambda value: f"{value:.3f}")
-        latest_sectors["Best sector (s)"] = latest_sectors["Best sector (s)"].map(lambda value: f"{value:.3f}")
-        latest_sectors["Delta to best (s)"] = latest_sectors["Delta to best (s)"].map(lambda value: f"{value:+.3f}")
-        st.caption(f"Latest lap with a completed sector: {latest_completed_lap} · benchmarked against this simulated run")
-        st.dataframe(
-            latest_sectors[["Sector", "Sector time (s)", "Best sector (s)", "Delta to best (s)"]],
-            hide_index=True,
-            use_container_width=True,
-        )
-        st.metric("Completed sectors", len(sector_progress))
+if sector_progress.empty:
+    st.info("The simulated duration did not complete a full sector.")
+else:
+    sector_best = sector_progress.groupby("Sector")["Sector time (s)"].min().rename("Best sector (s)")
+    latest_completed_lap = int(sector_progress["Lap"].max())
+    latest_sectors = sector_progress.loc[sector_progress["Lap"] == latest_completed_lap].copy()
+    latest_sectors = latest_sectors.join(sector_best, on="Sector")
+    latest_sectors["Delta to best (s)"] = latest_sectors["Sector time (s)"] - latest_sectors["Best sector (s)"]
+    latest_sectors["Sector time (s)"] = latest_sectors["Sector time (s)"].map(lambda value: f"{value:.3f}")
+    latest_sectors["Best sector (s)"] = latest_sectors["Best sector (s)"].map(lambda value: f"{value:.3f}")
+    latest_sectors["Delta to best (s)"] = latest_sectors["Delta to best (s)"].map(lambda value: f"{value:+.3f}")
+    sector_cols = st.columns([1.0, 2.0])
+    sector_cols[0].metric("Completed sectors", len(sector_progress))
+    sector_cols[1].caption(f"Latest lap with a completed sector: {latest_completed_lap} · best-sector benchmark from this simulated run")
+    st.dataframe(
+        latest_sectors[["Lap", "Sector", "Sector time (s)", "Best sector (s)", "Delta to best (s)"]],
+        hide_index=True,
+        use_container_width=True,
+    )
 st.download_button(
     "Download race telemetry CSV",
     race_vehicle.to_csv(index=False),
